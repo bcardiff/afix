@@ -21,24 +21,25 @@ $ crystal sample/sample1.cr
 ```
 $ crystal sample/markdown.cr
 $ crystal src/instrument.cr -- sample/markdown.cr
+## change markdown.afix.json for trace optimizations
+$ crystal src/fix_finder.cr -- ./sample/markdown.afix.cr
+$ patch -p1 < sample/markdown.cr.patch
+$ crystal sample/markdown.cr
 ```
 
 The instrumentation is greedy. It covers the whole file making the search space pretty huge. To mimic an instrumentation only on the expressions stressed on the failing test case and the following key/value to `.afix.json` file.
 
-```
-"only":["i2","i3","i5","i6","ia","ib","ii","ij","ik","il","im","i11","i14","i15","i1d","i1e","i1j"] ~ 20min 24057tries
-```
 
-narrowing 5 more expressions for demo
-
-```
-"only":["ib","ii","ij","ik","il","im","i11","i14","i15","i1d","i1e","i1j"] ~ 6seg 99tries
-```
+| strategy | time | tries |
+| --- | --- | --- |
+| naïve changes | 7yrs | NaN |
+| naïve with trace hint | 20min | 24057 |
+| near without trace hint | **40seg** | 333 |
+| near with trace hint | **8seg** | 129 |
 
 ```
-$ crystal src/fix_finder.cr -- ./sample/markdown.afix.cr
-$ patch -p1 < sample/markdown.cr.patch
-$ crystal sample/markdown.cr
+# markdown.afix.json with trace hint
+{"i2":0,"i3":0,"i5":0,"i6":0,"ia":0,"ib":0,"ii":0,"ij":0,"ik":0,"il":0,"im":0,"i11":0,"i14":0,"i15":0,"i1d":0,"i1e":0,"i1j":0}
 ```
 
 # Trace approximation
@@ -81,25 +82,20 @@ index 2031d4b..d5c1e66 100644
 
 ```
 diff --git a/sample/markdown.cr b/sample/markdown.cr
-index 87fc0a4..a135c88 100644
+index 87fc0a4..dbac2de 100644
 --- a/sample/markdown.cr
 +++ b/sample/markdown.cr
-@@ -471,9 +471,9 @@ class Markdown::Parser
-           @renderer.text line.byte_slice(cursor, pos - cursor)
+@@ -472,8 +472,8 @@ class Markdown::Parser
            @renderer.end_link
 
--          paren_idx = (str + pos + 1).to_slice(bytesize - pos - 1).index(')'.ord).not_nil!
-+          paren_idx = (str + pos + 1).to_slice(bytesize - pos - 1).index(')'.ord).not_nil! - 1
-           pos += paren_idx + 2
+           paren_idx = (str + pos + 1).to_slice(bytesize - pos - 1).index(')'.ord).not_nil!
+-          pos += paren_idx + 2
 -          cursor = pos
++          pos += paren_idx + 2 - 1
 +          cursor = pos + 1
            in_link = false
          end
        end
-@@ -768,3 +768,4 @@ describe Markdown do
-
-   assert_render "Hello __[World](http://foo.com)__!", %(<p>Hello <strong><a href="http://foo.com">World</a></strong>!</p>)
- end
 ```
 
 compare to [bugfix](https://github.com/manastech/crystal/commit/ed6d3d1be8ff71fd428b65d040475a1d1b7f1d0e) .

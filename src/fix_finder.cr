@@ -6,8 +6,9 @@ monitor_file = "#{afix_cr[0..-4]}.json"
 
 def iterate(file)
   AfixMonitor.load(file)
-  AfixMonitor.iterate
+  res = AfixMonitor.iterate
   AfixMonitor.save
+  res
 end
 
 puts "Running #{afix_cr} using #{monitor_file}"
@@ -25,23 +26,30 @@ until fixed || !has_next
   has_next = iterate(monitor_file) unless fixed
 end
 
-original_cr = "#{afix_cr[0..-9]}.cr"
-fixed_file = "#{afix_cr[0..-9]}.patched.cr"
+if fixed
+  original_cr = "#{afix_cr[0..-9]}.cr"
+  fixed_file = "#{afix_cr[0..-9]}.patched.cr"
 
-source = File.read(afix_cr).lines[3..-1].join
-AfixMonitor.load(monitor_file)
-AfixMonitor.all_keys.each do |key|
-  v = AfixMonitor.int(key)
-  r = if v == 0
-    ""
-  elsif v < 0
-    " - #{-v}"
-  else
-    " + #{v}"
+  source = File.read(afix_cr).lines[3..-1].join
+  AfixMonitor.load(monitor_file)
+  AfixMonitor.all_keys.each do |key|
+    v = AfixMonitor.int(key)
+    r = if v == 0
+      ""
+    elsif v < 0
+      " - #{-v}"
+    else
+      " + #{v}"
+    end
+    source = source.gsub(" + AfixMonitor.int(\"#{key}\")", r)
   end
-  source = source.gsub(" + AfixMonitor.int(\"#{key}\")", r)
+  source = source.gsub(/ \+ AfixMonitor\.int\(\"[^\"]*\"\)/, "")
+
+  File.write(fixed_file, source)
+
+  `diff -u #{original_cr} #{fixed_file} > #{original_cr}.patch`
+
+  puts "Fix found"
+else
+  puts "No fix found"
 end
-
-File.write(fixed_file, source)
-
-`diff -u #{original_cr} #{fixed_file} > #{original_cr}.patch`
