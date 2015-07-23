@@ -4,3 +4,7 @@
 /doc/
 
 
+sample/*.afix
+sample/*.afix.*
+sample/*.patch
+sample/*.patched.cr
