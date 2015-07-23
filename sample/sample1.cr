@@ -1,8 +1,8 @@
 require "spec"
 
 def succ(a)
-  res = a
-  a
+  res = a + 2
+  res
 end
 
 describe "self" do
