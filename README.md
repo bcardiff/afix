@@ -23,7 +23,7 @@ $ crystal sample/markdown.cr
 $ crystal src/instrument.cr -- sample/markdown.cr
 ```
 
-The instrumentation is greedy. It covers the whole file making the search space pretty huge. To mimic an instrumentation only on the expressions stressed on the failing test case:
+The instrumentation is greedy. It covers the whole file making the search space pretty huge. To mimic an instrumentation only on the expressions stressed on the failing test case and the following key/value to `.afix.json` file.
 
 ```
 "only":["i2","i3","i5","i6","ia","ib","ii","ij","ik","il","im","i11","i14","i15","i1d","i1e","i1j"] ~ 20min 24057tries
@@ -35,11 +35,25 @@ narrowing 5 more expressions for demo
 "only":["ib","ii","ij","ik","il","im","i11","i14","i15","i1d","i1e","i1j"] ~ 6seg 99tries
 ```
 
-(this can be added to `.afix.json` file)
-
 ```
 $ crystal src/fix_finder.cr -- ./sample/markdown.afix.cr
 $ patch -p1 < sample/markdown.cr.patch
 $ crystal sample/markdown.cr
+```
+
+# Trace approximation
+
+Make the `.afix.cr` file start with
+
+```
+require "../src/monitor"
+require "../src/trace"
+AfixMonitor.load(ARGV[0])
+```
+
+Run the failing test only, extract the monitors keys, etc.
+
+```
+crystal spec sample/markdown.afix.cr:773 sample/markdown.afix.json | uniq | sort
 ```
 
