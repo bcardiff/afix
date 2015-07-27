@@ -1,5 +1,6 @@
 require "json"
 require "compiler/crystal/**"
+require "./reach"
 
 include Crystal
 
@@ -19,7 +20,7 @@ end
 class AssignIntrumentor < Visitor
   getter sample_monitor
 
-  def initialize(@filename, @output_filename)
+  def initialize(@filename)
     @patched_location = Set(String).new
     @next_var_monitor = 0
     @sample_monitor = Hash(String, JSON::Type).new
@@ -50,7 +51,7 @@ class AssignIntrumentor < Visitor
       t = node.type?
       if t.is_a?(IntegerType)
         if t.kind == :i32
-          append_to_line(@output_filename, loc.line_number, " + AfixMonitor.int(\"#{fresh_monitor(:i)}\")")
+          append_to_line(loc.filename as String, loc.line_number, " + AfixMonitor.int(\"#{fresh_monitor(:i)}\")")
           @patched_location << loc.to_s
         end
       end
@@ -79,23 +80,35 @@ class AssignIntrumentor < Visitor
 
 end
 
-filename = File.expand_path(ARGV[0])
-source = Compiler::Source.new(filename, File.read(filename))
 
-output = filename[0..-4] + ".afix.cr"
-File.write(output, source.code)
+# get the main entry file (spec) and failing test
+failing_spec = ARGV[0]
+spec_filename, spec_line = failing_spec.split(':')
+spec_filename = File.expand_path(spec_filename)
+source = Compiler::Source.new(spec_filename, File.read(spec_filename))
 
+# compile without build
 compiler = Compiler.new
 compiler.no_build = true
 result = compiler.compile(source, "fake-no-build")
-visitor = AssignIntrumentor.new(filename, output)
-visitor.process(result)
 
-monitor_sample = filename[0..-4] + ".afix.json"
+# find the failing test call
+spec_it_finder = SpecCallFinder.new(spec_filename, spec_line.to_i)
+spec_it_finder.process(result)
+
+# instrument reachable code from failing test call
+visitor = AssignIntrumentor.new(spec_filename)
+spec_it_finder.calls.each do |call|
+  call.accept(visitor)
+end
+
+# save initial monitor
+monitor_sample = spec_filename[0..-4] + ".afix.json"
 File.write(monitor_sample, visitor.sample_monitor.to_json)
 
-File.write(output, %(require "../src/monitor"
+# save in main entry file, required code to run monitor
+File.write(spec_filename, %(require "../src/monitor"
 AfixMonitor.load(ARGV[0])
 
-#{File.read(output)}
+#{File.read(spec_filename)}
 ))
